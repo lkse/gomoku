@@ -1,0 +1,27 @@
+[package]
+name = "gomoku"
+version = "0.1.0"
+edition = "2021"
+description = "A fast, zero-dependency game and rule handler for all rulesets of gomoku narabe."
+license = ""
+repository = "https://github.com/lkse/gomoku"
+keywords = ["gomoku", "renju", "game", "board-game", "rules"]
+categories = ["games", "game-development"]
+
+[dependencies]
+
+[lib]
+# Don't run the unit-test harness under `cargo bench`; benchmarks live in benches/.
+bench = false
+
+# Dev-only: the published library still has zero runtime dependencies.
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false }
+
+[[bench]]
+name = "engine"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
