@@ -57,6 +57,9 @@ pub struct Game {
     to_move: Player,
     status: Status,
     history: Vec<PlayedMove>,
+    /// Stones currently on the board, tracked incrementally so draw detection
+    /// avoids a per-move popcount over the bitboards.
+    stone_count: u32,
     /// Captured-pair counts, indexed by `player as usize` (Black = 0, White = 1).
     captures: [u16; 2],
     /// Cursor into the active opening protocol's step sequence.
@@ -98,6 +101,7 @@ impl Game {
             to_move: Player::Black,
             status: Status::InProgress,
             history: Vec::new(),
+            stone_count: 0,
             captures: [0, 0],
             opening_step: 0,
             opening_count: 0,
@@ -304,15 +308,19 @@ impl Game {
             Vec::new()
         };
         self.captures[player as usize] += (captured.len() / 2) as u16;
+        // One stone placed, minus any captured off the board. Evaluated as
+        // `(count + 1) - captured` so it never underflows (captured <= count).
+        self.stone_count = self.stone_count + 1 - captured.len() as u32;
 
         let capture_win = self
             .rules
             .capture
             .is_some_and(|c| self.captures[player as usize] >= c.pairs_to_win as u16);
 
+        let cells = self.board.size() as u32 * self.board.size() as u32;
         self.status = if win::is_win(&self.board, p, player, &self.rules) || capture_win {
             Status::Win(player)
-        } else if self.board.is_full() {
+        } else if self.stone_count == cells {
             Status::Draw
         } else {
             Status::InProgress
@@ -344,6 +352,8 @@ impl Game {
             self.board.place(last.player.opponent(), c);
         }
         self.captures[last.player as usize] -= (last.captured.len() / 2) as u16;
+        // Reverse the play-time count: remove the placed stone, restore captures.
+        self.stone_count = self.stone_count - 1 + last.captured.len() as u32;
         self.opening_step = last.opening_step_before;
         self.to_move = last.player;
         self.status = Status::InProgress;
