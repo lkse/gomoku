@@ -4,8 +4,9 @@ A fast, zero-dependency game and rule engine for gomoku narabe (五目並べ) an
 major variants, written in Rust.
 
 `gomoku` maintains board state and arbitrates the rules. It is an **engine, not a
-player** — there is no AI or move search. It is designed to be the authoritative
-rule layer beneath a user interface, a game server, or a search-based bot.
+player**.
+
+`gomoku` is also my rust learning project. it probably doesn't follow best practices, or is good code in general. PR's are welcome.
 
 ## Highlights
 
