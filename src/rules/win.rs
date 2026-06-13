@@ -25,7 +25,6 @@ pub(crate) struct LineRun {
 /// Measure the run of `player`'s stones through `p` along `axis`.
 pub(crate) fn run_through(board: &Board, p: Point, player: Player, axis: (i8, i8)) -> LineRun {
     let (dx, dy) = axis;
-    let opp = Cell::Stone(player.opponent());
     let mut len = 1u8;
     let mut blocked_ends = 0u8;
 
@@ -33,18 +32,17 @@ pub(crate) fn run_through(board: &Board, p: Point, player: Player, axis: (i8, i8
         let (sdx, sdy) = (dx * sign, dy * sign);
         let mut step: i8 = 1;
         loop {
-            match p.offset(sdx * step, sdy * step) {
-                Some(q) if board.get(q).is(player) => {
+            // Read each cell once; off-board reads as empty (not a block).
+            match p.offset(sdx * step, sdy * step).map(|q| board.get(q)) {
+                Some(Cell::Stone(c)) if c == player => {
                     len += 1;
                     step += 1;
                 }
-                Some(q) => {
-                    if board.get(q) == opp {
-                        blocked_ends += 1;
-                    }
+                Some(Cell::Stone(_)) => {
+                    blocked_ends += 1; // an opponent stone bounds this end
                     break;
                 }
-                None => break, // ran off the edge: not a block
+                Some(Cell::Empty) | None => break,
             }
         }
     }
