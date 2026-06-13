@@ -31,14 +31,6 @@
 //! regardless of board size. On commodity hardware a single move is checked in
 //! roughly 25 ns (Renju, with its recursive forbidden-move analysis, is the
 //! exception). See `cargo bench` and the `bench` example for measurements.
-//!
-//! # Concurrency
-//!
-//! The crate contains no `unsafe`, no global mutable state, and no interior
-//! mutability. All public types are [`Send`] and [`Sync`]; a [`Game`] can be
-//! moved between threads or shared immutably, and Rust's borrow checker
-//! guarantees that mutation through [`Game::play`] is exclusive.
-//!
 //! # Examples
 //!
 //! ```
