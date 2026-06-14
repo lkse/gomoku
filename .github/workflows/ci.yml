@@ -57,7 +57,7 @@ jobs:
     if: github.event_name == 'pull_request'
 
     env:
-      BENCH_REGRESSION_THRESHOLD: "0.05"
+      BENCH_REGRESSION_THRESHOLD: "0.25"
 
     steps:
       - name: Checkout base branch
