@@ -48,13 +48,13 @@ impl fmt::Display for ForbiddenKind {
 /// use gomoku::{RuleSet, RuleSetError};
 ///
 /// let mut rules = RuleSet::standard();
-/// rules.board_size = 99; // out of the supported 5..=19 range
+/// rules.board_size = 99; // out of the supported 5..=20 range
 /// assert_eq!(rules.validate(), Err(RuleSetError::BoardSize(99)));
 /// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleSetError {
-    /// `board_size` is outside the supported range `5..=19`.
+    /// `board_size` is outside the supported range `5..=20`.
     BoardSize(u8),
     /// `win_length` is less than 2 or greater than `board_size`.
     WinLength(u8),
@@ -65,7 +65,7 @@ pub enum RuleSetError {
 impl fmt::Display for RuleSetError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RuleSetError::BoardSize(n) => write!(f, "board size {n} is not in 5..=19"),
+            RuleSetError::BoardSize(n) => write!(f, "board size {n} is not in 5..=20"),
             RuleSetError::WinLength(n) => write!(f, "win length {n} must be in 2..=board_size"),
             RuleSetError::ZeroCapturePairs => {
                 f.write_str("capture pairs-to-win must be at least 1")

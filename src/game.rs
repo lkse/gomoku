@@ -163,7 +163,7 @@ impl Game {
     /// # Panics
     ///
     /// Panics if `rules` is not valid (see [`RuleSet::validate`]); most importantly
-    /// if `rules.board_size` is outside `5..=19`. Use [`Game::try_new`] to handle
+    /// if `rules.board_size` is outside `5..=20`. Use [`Game::try_new`] to handle
     /// invalid configurations without panicking.
     ///
     /// # Examples

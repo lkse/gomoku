@@ -9,9 +9,9 @@ use std::fmt;
 /// ```
 /// use gomoku::MAX_SIZE;
 ///
-/// assert_eq!(MAX_SIZE, 19);
+/// assert_eq!(MAX_SIZE, 20);
 /// ```
-pub const MAX_SIZE: u8 = 19;
+pub const MAX_SIZE: u8 = 20;
 
 /// A board intersection, addressed by zero-based column (`x`) and row (`y`).
 ///
@@ -142,7 +142,7 @@ mod tests {
         assert_eq!(p.offset(-1, 0), None);
         assert_eq!(p.offset(0, -1), None);
         assert_eq!(p.offset(1, 1), Some(Point::new(1, 1)));
-        assert_eq!(Point::new(18, 18).offset(1, 0), None);
+        assert_eq!(Point::new(19, 19).offset(1, 0), None);
     }
 
     #[test]

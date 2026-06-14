@@ -98,7 +98,7 @@ pub enum Opening {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuleSet {
-    /// Edge length of the (square) board, `5..=19`.
+    /// Edge length of the (square) board, `5..=20`.
     pub board_size: u8,
     /// Stones in a row required to win (always 5 for standard variants).
     pub win_length: u8,
@@ -347,7 +347,7 @@ impl RuleSet {
     ///
     /// # Panics
     ///
-    /// Panics unless `5 <= size <= 19`.
+    /// Panics unless `5 <= size <= 20`.
     ///
     /// # Examples
     ///
@@ -363,7 +363,7 @@ impl RuleSet {
     pub fn with_board_size(mut self, size: u8) -> RuleSet {
         assert!(
             (5..=MAX_SIZE).contains(&size),
-            "board size must be in 5..=19, got {size}"
+            "board size must be in 5..=20, got {size}"
         );
         self.board_size = size;
         self

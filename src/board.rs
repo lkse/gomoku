@@ -4,10 +4,10 @@ use crate::point::{Point, MAX_SIZE};
 use crate::stone::{Cell, Player};
 use std::fmt;
 
-/// Number of 64-bit words needed to cover `MAX_SIZE * MAX_SIZE` (= 361) cells.
-const WORDS: usize = 6;
+/// Number of 64-bit words needed to cover `MAX_SIZE * MAX_SIZE` (= 400) cells.
+const WORDS: usize = 7;
 
-/// A gomoku board of configurable square size (`5..=19`).
+/// A gomoku board of configurable square size (`5..=20`).
 ///
 /// Occupancy is stored as two bitboards, one per color, so that membership
 /// tests and whole-board scans are a handful of word operations regardless of
@@ -41,7 +41,7 @@ impl Board {
     ///
     /// # Panics
     ///
-    /// Panics unless `5 <= size <= 19`.
+    /// Panics unless `5 <= size <= 20`.
     ///
     /// # Examples
     ///
@@ -56,7 +56,7 @@ impl Board {
     pub fn new(size: u8) -> Board {
         assert!(
             (5..=MAX_SIZE).contains(&size),
-            "board size must be in 5..=19, got {size}"
+            "board size must be in 5..=20, got {size}"
         );
         Board {
             size,
@@ -349,6 +349,22 @@ mod tests {
         b.place(Player::White, corner);
         assert_eq!(b.get(corner), Cell::Stone(Player::White));
         assert!(b.is_empty(Point::new(0, 0)));
+    }
+
+    #[test]
+    fn max_size_corner_uses_seventh_word() {
+        // Corner of a 20x20 board lives at bit 399 (19*20+19), in word 6.
+        let mut b = Board::new(20);
+        let corner = Point::new(19, 19);
+        b.place(Player::Black, corner);
+        assert_eq!(b.get(corner), Cell::Stone(Player::Black));
+        assert_eq!(b.stone_count(), 1);
+        // Fill it and confirm draw detection counts all 400 cells.
+        for p in b.points().collect::<Vec<_>>() {
+            b.place(Player::White, p);
+        }
+        assert!(b.is_full());
+        assert_eq!(b.stone_count(), 400);
     }
 
     #[test]
