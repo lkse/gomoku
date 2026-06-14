@@ -84,11 +84,11 @@ impl Board {
     /// # Panics
     /// Panics if the point is off-board.
     #[inline]
-    pub fn place(&mut self, p: Player, at: Point) {
+    pub fn place(&mut self, player: Player, at: Point) {
         assert!(self.in_bounds(at), "place out of bounds: {at}");
         let i = self.index(at);
         let (w, bit) = (i / 64, 1u64 << (i % 64));
-        match p {
+        match player {
             Player::Black => {
                 self.black[w] |= bit;
                 self.white[w] &= !bit;
