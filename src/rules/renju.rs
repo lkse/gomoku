@@ -214,6 +214,11 @@ fn black_in_range(board: &Board, m: Point) -> bool {
 /// the board is copied once into a scratch position, after which every
 /// hypothetical stone (including the recursive three-resolution) is tested by
 /// make/unmake on that single board — no per-candidate copies.
+///
+/// Kept out-of-line: this is only reached on the Renju branch of `move_playable`,
+/// and inlining its bulk there would bloat that shared hot path and slow move
+/// generation for every variant (a `lto` + `codegen-units = 1` layout effect).
+#[inline(never)]
 pub(crate) fn forbidden(board: &Board, m: Point) -> Option<ForbiddenKind> {
     if !black_in_range(board, m) {
         return None;
