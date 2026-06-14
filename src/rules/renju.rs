@@ -177,13 +177,52 @@ fn forbidden_at(board: &mut Board, m: Point, depth: u8) -> Option<ForbiddenKind>
     verdict
 }
 
+/// Maximum distance along an axis at which an existing Black stone can contribute
+/// to a shape forbidden by a move at `m`. A four or an open three may carry a
+/// single gap immediately next to `m`, leaving the nearest *real* Black stone two
+/// cells away; a five or an overline runs contiguously through `m`, so its stones
+/// are adjacent. No forbidden shape can be built without a Black stone this close,
+/// so a move with none in range is always allowed.
+const FORBIDDEN_REACH: i8 = 2;
+
+/// Whether any Black stone sits within [`FORBIDDEN_REACH`] of `m` along some axis,
+/// i.e. close enough to take part in a forbidden shape. A move that fails this
+/// cheap check cannot be forbidden, so [`forbidden`] can skip classifying it. The
+/// scan is conservative, it reads through gaps and opponent stones rather than
+/// stopping, so it may over-report (costing a redundant classification) but can
+/// never miss a genuinely forbidden move.
+fn black_in_range(board: &Board, m: Point) -> bool {
+    for &(dx, dy) in AXES.iter() {
+        for sign in [1i8, -1] {
+            for k in 1..=FORBIDDEN_REACH {
+                match m.offset(dx * sign * k, dy * sign * k) {
+                    Some(q) if board.get(q).is(BLACK) => return true,
+                    Some(_) => {}
+                    None => break, // ran off the edge along this direction
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Whether Black playing at `m` is a Renju forbidden move. `board` is the
 /// current position (without `m`).
 ///
-/// The board is copied once into a scratch position, after which every
+/// A cheap range check rejects the common case, a point with no Black stone
+/// close enough to form any shape, before the heavier classification. Otherwise
+/// the board is copied once into a scratch position, after which every
 /// hypothetical stone (including the recursive three-resolution) is tested by
 /// make/unmake on that single board, no per-candidate copies.
+///
+/// Kept out-of-line: this is only reached on the Renju branch of `move_playable`,
+/// and inlining its bulk there would bloat that shared hot path and slow move
+/// generation for every variant (a `lto` + `codegen-units = 1` layout effect).
+#[inline(never)]
 pub(crate) fn forbidden(board: &Board, m: Point) -> Option<ForbiddenKind> {
+    if !black_in_range(board, m) {
+        return None;
+    }
     let mut scratch = board.clone();
     forbidden_at(&mut scratch, m, 0)
 }
@@ -259,5 +298,24 @@ mod tests {
         let b = black_board(&[(3, 7), (4, 7), (5, 7), (6, 7)]);
         // Extending to a straight/open four is fine (it is a winning threat).
         assert_eq!(forbidden(&b, Point::new(2, 7)), None);
+    }
+
+    #[test]
+    fn overline_with_move_at_run_end_is_forbidden() {
+        // The move caps a six-in-a-row from its end; the `black_in_range` pre-check
+        // must still admit it for classification (the run is adjacent to `m`).
+        let b = black_board(&[(3, 7), (4, 7), (5, 7), (6, 7), (7, 7)]);
+        assert_eq!(
+            forbidden(&b, Point::new(8, 7)),
+            Some(ForbiddenKind::Overline)
+        );
+    }
+
+    #[test]
+    fn move_far_from_all_stones_is_allowed() {
+        // The `black_in_range` fast-path: with no Black stone anywhere near `m`,
+        // no forbidden shape is possible and classification is skipped.
+        let b = black_board(&[(2, 2), (2, 3)]);
+        assert_eq!(forbidden(&b, Point::new(12, 12)), None);
     }
 }
