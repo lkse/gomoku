@@ -2,11 +2,18 @@
 name = "gomoku"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
+authors = ["Loki <loki@lksen.com>"]
 description = "A fast, zero-dependency game and rule handler for all rulesets of gomoku narabe."
 license = "LGPL-2.1-only"
 repository = "https://github.com/lkse/gomoku"
+readme = "README.md"
 keywords = ["gomoku", "renju", "game", "board-game", "rules"]
 categories = ["games", "game-development"]
+
+# Document every feature on docs.rs (currently none, but future-proofs the build).
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 

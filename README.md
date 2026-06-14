@@ -1,12 +1,39 @@
+<div align="center">
+
+<img src="assets/tileandbkg.png" alt="gomoku" width="140" />
+
 # gomoku
 
-A fast, zero-dependency game and rule engine for gomoku narabe (五目並べ) and its
-major variants, written in Rust.
+**A fast, zero-dependency game and rule engine for gomoku narabe (五目並べ) and its
+major variants, written in Rust.**
+
+[![CI](https://github.com/lkse/gomoku/actions/workflows/ci.yml/badge.svg)](https://github.com/lkse/gomoku/actions/workflows/ci.yml)
+[![Rust 1.70+](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![License: LGPL-2.1-only](https://img.shields.io/badge/license-LGPL--2.1-blue.svg)](LICENSE)
+
+</div>
+
+<img src="assets/bar.png" width="100%" alt="" />
 
 `gomoku` maintains board state and arbitrates the rules. It is an **engine, not a
-player**.
+player** - there is no AI or move search. It is the authoritative rule layer you put
+beneath a UI, a server, or a search-based bot.
 
-`gomoku` is also my rust learning project. it probably doesn't follow best practices, or is good code in general. PR's are welcome.
+> **Heads up:** this is also my Rust learning project, so it may not always follow
+> best practices or idiomatic style. Feedback, questions, and PRs are very welcome,
+> see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Contents
+
+- [Highlights](#highlights)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Rule variants](#rule-variants)
+- [Opening protocols](#opening-protocols)
+- [Serialization](#serialization)
+- [Performance](#performance)
+- [Project layout](#project-layout)
+- [Development](#development)
 
 ## Highlights
 
@@ -28,6 +55,8 @@ Add the crate to your `Cargo.toml`:
 [dependencies]
 gomoku = { git = "https://github.com/lkse/gomoku" }
 ```
+
+The minimum supported Rust version is **1.70**.
 
 ## Quick start
 
@@ -146,6 +175,8 @@ examples/       demo.rs, bench.rs
 benches/        engine.rs (Criterion)
 ```
 
+<img src="assets/bar.png" width="100%" alt="" />
+
 ## Development
 
 ```sh
@@ -156,4 +187,6 @@ cargo fmt                                    # format
 cargo doc --no-deps --open                   # API documentation
 ```
 
-The library enforces `#![forbid(unsafe_code)]` and `#![deny(missing_docs)]`.
+The library enforces `#![forbid(unsafe_code)]` and `#![deny(missing_docs)]`. For the
+full contributor workflow - the checks CI runs, how tests are organized, and what's
+expected of a change - see [CONTRIBUTING.md](CONTRIBUTING.md).

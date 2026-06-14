@@ -12,6 +12,16 @@ use crate::error::RuleSetError;
 use crate::point::MAX_SIZE;
 
 /// How a run longer than the win length is treated.
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Overline, RuleSet};
+///
+/// // Freestyle counts an overline as a win; Standard does not.
+/// assert_eq!(RuleSet::freestyle().overline, Overline::Win);
+/// assert_eq!(RuleSet::standard().overline, Overline::NoWin);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Overline {
     /// A run of `win_length` *or more* wins (Freestyle, Caro).
@@ -22,6 +32,16 @@ pub enum Overline {
 }
 
 /// Pente-style capture configuration.
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::RuleSet;
+///
+/// // Pente is won by reaching five captured pairs.
+/// let capture = RuleSet::pente().capture.expect("pente captures");
+/// assert_eq!(capture.pairs_to_win, 5);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Capture {
     /// Number of captured *pairs* that wins the game.
@@ -29,6 +49,15 @@ pub struct Capture {
 }
 
 /// The opening protocol governing the first moves of the game.
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Opening, RuleSet};
+///
+/// assert_eq!(RuleSet::standard().opening, Opening::Free);
+/// assert_eq!(RuleSet::swap2().opening, Opening::Swap2);
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Opening {
@@ -54,6 +83,18 @@ pub enum Opening {
 /// Construct one with a preset (e.g. [`RuleSet::standard`]) and adjust its
 /// public fields as needed; the struct is `#[non_exhaustive]` so that new rule
 /// options can be added without breaking callers.
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Overline, RuleSet};
+///
+/// // Start from a preset, then tweak fields and validate the result.
+/// let mut rules = RuleSet::standard();
+/// rules.overline = Overline::Win; // make overlines winning again
+/// rules.board_size = 13;
+/// assert!(rules.validate().is_ok());
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuleSet {
@@ -75,6 +116,16 @@ pub struct RuleSet {
 
 impl RuleSet {
     /// Freestyle gomoku: five *or more* in a row wins, no restrictions.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Overline, RuleSet};
+    ///
+    /// let rules = RuleSet::freestyle();
+    /// assert_eq!(rules.board_size, 15);
+    /// assert_eq!(rules.overline, Overline::Win); // an overline still wins
+    /// ```
     pub fn freestyle() -> RuleSet {
         RuleSet {
             board_size: 15,
@@ -88,6 +139,14 @@ impl RuleSet {
     }
 
     /// Standard gomoku: exactly five wins; an overline does not.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Overline, RuleSet};
+    ///
+    /// assert_eq!(RuleSet::standard().overline, Overline::NoWin);
+    /// ```
     pub fn standard() -> RuleSet {
         RuleSet {
             overline: Overline::NoWin,
@@ -97,6 +156,14 @@ impl RuleSet {
 
     /// Caro: five or more wins, but not if blocked by the opponent at both ends.
     /// Played on 15×15.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::RuleSet;
+    ///
+    /// assert!(RuleSet::caro().caro_block_both_ends);
+    /// ```
     pub fn caro() -> RuleSet {
         RuleSet {
             overline: Overline::Win,
@@ -108,6 +175,14 @@ impl RuleSet {
     /// Renju: Standard scoring plus Black's forbidden moves (double-three,
     /// double-four, overline). Opens freely (Free Renju); see
     /// [`renju_yamaguchi`](RuleSet::renju_yamaguchi) for the balanced opening.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::RuleSet;
+    ///
+    /// assert!(RuleSet::renju().forbidden_black); // Black's forbidden moves apply
+    /// ```
     pub fn renju() -> RuleSet {
         RuleSet {
             overline: Overline::NoWin,
@@ -118,6 +193,14 @@ impl RuleSet {
     }
 
     /// Omok (Korean): exactly five wins (no overline) on a 19×19 board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::RuleSet;
+    ///
+    /// assert_eq!(RuleSet::omok().board_size, 19);
+    /// ```
     pub fn omok() -> RuleSet {
         RuleSet {
             board_size: 19,
@@ -126,6 +209,16 @@ impl RuleSet {
     }
 
     /// Renju with the Yamaguchi balanced opening.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Opening, RuleSet};
+    ///
+    /// let rules = RuleSet::renju_yamaguchi();
+    /// assert_eq!(rules.opening, Opening::Yamaguchi);
+    /// assert!(rules.forbidden_black); // still full Renju scoring
+    /// ```
     pub fn renju_yamaguchi() -> RuleSet {
         RuleSet {
             opening: Opening::Yamaguchi,
@@ -134,6 +227,14 @@ impl RuleSet {
     }
 
     /// Standard gomoku with the Swap opening (place three, then choose a color).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Opening, RuleSet};
+    ///
+    /// assert_eq!(RuleSet::swap().opening, Opening::Swap);
+    /// ```
     pub fn swap() -> RuleSet {
         RuleSet {
             opening: Opening::Swap,
@@ -142,6 +243,14 @@ impl RuleSet {
     }
 
     /// Standard gomoku with the Swap2 opening.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Opening, RuleSet};
+    ///
+    /// assert_eq!(RuleSet::swap2().opening, Opening::Swap2);
+    /// ```
     pub fn swap2() -> RuleSet {
         RuleSet {
             opening: Opening::Swap2,
@@ -150,6 +259,14 @@ impl RuleSet {
     }
 
     /// Standard gomoku with the Pro opening (Black 1 center, Black 3 ≥3 away).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Opening, RuleSet};
+    ///
+    /// assert_eq!(RuleSet::pro().opening, Opening::Pro);
+    /// ```
     pub fn pro() -> RuleSet {
         RuleSet {
             opening: Opening::Pro,
@@ -158,6 +275,14 @@ impl RuleSet {
     }
 
     /// Standard gomoku with the Long Pro opening (Black 3 ≥4 away).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Opening, RuleSet};
+    ///
+    /// assert_eq!(RuleSet::long_pro().opening, Opening::LongPro);
+    /// ```
     pub fn long_pro() -> RuleSet {
         RuleSet {
             opening: Opening::LongPro,
@@ -166,6 +291,16 @@ impl RuleSet {
     }
 
     /// Pente: five in a row *or* five captured pairs wins, on a 19×19 board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::RuleSet;
+    ///
+    /// let rules = RuleSet::pente();
+    /// assert_eq!(rules.board_size, 19);
+    /// assert!(rules.capture.is_some()); // custodial captures are enabled
+    /// ```
     pub fn pente() -> RuleSet {
         RuleSet {
             board_size: 19,
@@ -181,6 +316,18 @@ impl RuleSet {
     /// Returns a [`RuleSetError`] if the board size is out of range, the win
     /// length is not within `2..=board_size`, or capturing is enabled with a
     /// zero pairs-to-win target.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{RuleSet, RuleSetError};
+    ///
+    /// assert!(RuleSet::standard().validate().is_ok());
+    ///
+    /// let mut rules = RuleSet::standard();
+    /// rules.win_length = 99; // longer than the board
+    /// assert_eq!(rules.validate(), Err(RuleSetError::WinLength(99)));
+    /// ```
     pub fn validate(&self) -> Result<(), RuleSetError> {
         if !(5..=MAX_SIZE).contains(&self.board_size) {
             return Err(RuleSetError::BoardSize(self.board_size));
@@ -201,6 +348,17 @@ impl RuleSet {
     /// # Panics
     ///
     /// Panics unless `5 <= size <= 19`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::RuleSet;
+    ///
+    /// // Play Renju on a smaller 13×13 board.
+    /// let rules = RuleSet::renju().with_board_size(13);
+    /// assert_eq!(rules.board_size, 13);
+    /// assert!(rules.forbidden_black); // other rules are unchanged
+    /// ```
     #[must_use]
     pub fn with_board_size(mut self, size: u8) -> RuleSet {
         assert!(

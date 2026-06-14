@@ -29,38 +29,46 @@ const MAX_DEPTH: u8 = 6;
 
 /// State of a cell along a line, relative to Black.
 #[derive(PartialEq, Clone, Copy)]
-enum Ls {
+enum LineCell {
+    /// Holds a Black stone (the color whose shapes are being classified).
     Own,
+    /// Holds a White stone.
     Opp,
+    /// Unoccupied and on the board.
     Empty,
+    /// Off the board.
     Edge,
 }
 
-/// Read the cell `k` steps from `from` along `dir`.
-fn ls(board: &Board, from: Point, dir: (i8, i8), k: i8) -> Ls {
-    match from.offset(dir.0 * k, dir.1 * k) {
+/// Read the cell `step` cells from `from` along `dir`.
+fn cell_at(board: &Board, from: Point, dir: (i8, i8), step: i8) -> LineCell {
+    match from.offset(dir.0 * step, dir.1 * step) {
         Some(q) if board.in_bounds(q) => match board.get(q) {
-            Cell::Empty => Ls::Empty,
-            Cell::Stone(BLACK) => Ls::Own,
-            Cell::Stone(_) => Ls::Opp,
+            Cell::Empty => LineCell::Empty,
+            Cell::Stone(BLACK) => LineCell::Own,
+            Cell::Stone(_) => LineCell::Opp,
         },
-        _ => Ls::Edge,
+        _ => LineCell::Edge,
     }
 }
 
 /// The contiguous run of Black stones through `m` along `dir`, together with the
 /// state of the cell just past each end. `m` must already hold a Black stone.
-fn contiguous(board: &Board, m: Point, dir: (i8, i8)) -> (u32, Ls, Ls) {
-    let mut f: i8 = 1;
-    while ls(board, m, dir, f) == Ls::Own {
-        f += 1;
+fn contiguous(board: &Board, m: Point, dir: (i8, i8)) -> (u32, LineCell, LineCell) {
+    let mut forward: i8 = 1;
+    while cell_at(board, m, dir, forward) == LineCell::Own {
+        forward += 1;
     }
-    let mut b: i8 = 1;
-    while ls(board, m, dir, -b) == Ls::Own {
-        b += 1;
+    let mut backward: i8 = 1;
+    while cell_at(board, m, dir, -backward) == LineCell::Own {
+        backward += 1;
     }
-    let len = (f as u32 - 1) + (b as u32 - 1) + 1;
-    (len, ls(board, m, dir, f), ls(board, m, dir, -b))
+    let len = (forward as u32 - 1) + (backward as u32 - 1) + 1;
+    (
+        len,
+        cell_at(board, m, dir, forward),
+        cell_at(board, m, dir, -backward),
+    )
 }
 
 /// Whether the just-placed Black stone at `m` makes an exact five anywhere.
@@ -83,9 +91,9 @@ fn has_four(board: &mut Board, m: Point, dir: (i8, i8)) -> bool {
         let mut gap: Option<i8> = None;
         let mut dead = false;
         for j in 0..5i8 {
-            match ls(board, m, dir, s + j) {
-                Ls::Own => own += 1,
-                Ls::Empty => gap = Some(s + j),
+            match cell_at(board, m, dir, s + j) {
+                LineCell::Own => own += 1,
+                LineCell::Empty => gap = Some(s + j),
                 _ => {
                     dead = true;
                     break;
@@ -97,11 +105,11 @@ fn has_four(board: &mut Board, m: Point, dir: (i8, i8)) -> bool {
         }
         // Exactly four own + one empty: filling the gap must give exactly five
         // (not an overline) for this to be a genuine four.
-        let k = gap.unwrap();
-        let e = m.offset(dir.0 * k, dir.1 * k).unwrap();
-        board.place(BLACK, e);
-        let five = contiguous(board, e, dir).0 == 5;
-        board.clear(e);
+        let fill_offset = gap.unwrap();
+        let fill = m.offset(dir.0 * fill_offset, dir.1 * fill_offset).unwrap();
+        board.place(BLACK, fill);
+        let five = contiguous(board, fill, dir).0 == 5;
+        board.clear(fill);
         if five {
             return true;
         }
@@ -115,19 +123,19 @@ fn has_four(board: &mut Board, m: Point, dir: (i8, i8)) -> bool {
 /// unchanged on return.
 fn has_open_three(board: &mut Board, m: Point, dir: (i8, i8), depth: u8) -> bool {
     for k in -4i8..=4 {
-        if k == 0 || ls(board, m, dir, k) != Ls::Empty {
+        if k == 0 || cell_at(board, m, dir, k) != LineCell::Empty {
             continue;
         }
-        let e = m.offset(dir.0 * k, dir.1 * k).unwrap();
+        let fill = m.offset(dir.0 * k, dir.1 * k).unwrap();
         // A straight four through `m`: four contiguous with both ends open.
-        board.place(BLACK, e);
+        board.place(BLACK, fill);
         let (len, front, back) = contiguous(board, m, dir);
-        board.clear(e);
+        board.clear(fill);
 
-        if len == 4 && front == Ls::Empty && back == Ls::Empty {
-            // The completing move `e` must itself be legal for Black. `forbidden_at`
-            // re-places and removes `e`, so we clear it first (above).
-            if depth >= MAX_DEPTH || forbidden_at(board, e, depth + 1).is_none() {
+        if len == 4 && front == LineCell::Empty && back == LineCell::Empty {
+            // The completing move `fill` must itself be legal for Black.
+            // `forbidden_at` re-places and removes `fill`, so we clear it first.
+            if depth >= MAX_DEPTH || forbidden_at(board, fill, depth + 1).is_none() {
                 return true;
             }
         }
