@@ -1,5 +1,7 @@
 # gomoku
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/lkse/gomoku?utm_source=badge)
+
 A fast, zero-dependency game and rule engine for gomoku narabe (五目並べ) and its
 major variants, written in Rust.
 

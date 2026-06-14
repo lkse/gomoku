@@ -2,27 +2,19 @@ name: CodSpeed
 
 # Instruction-level benchmarking: CodSpeed runs the same Criterion benches under
 # a CPU simulator, so results are deterministic and independent of runner load —
-# unlike the wall-clock `benchmark regression` job in ci.yml. Requires the repo
-# to be connected at https://codspeed.io and a `CODSPEED_TOKEN` repository secret.
+# unlike the wall-clock `benchmark regression` job in ci.yml.
 on:
   push:
     branches:
       - main
-    paths:
-      - "**/*.rs"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/codspeed.yml"
   pull_request:
-    paths:
-      - "**/*.rs"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/codspeed.yml"
+  # `workflow_dispatch` allows CodSpeed to trigger backtest performance
+  # analysis in order to generate initial data.
   workflow_dispatch:
 
 permissions:
   contents: read
+  id-token: write # for OpenID Connect authentication with CodSpeed
 
 concurrency:
   group: codspeed-${{ github.ref }}
@@ -30,34 +22,26 @@ concurrency:
 
 jobs:
   benchmarks:
-    name: codspeed
+    name: Run benchmarks
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Skips cleanly until you opt in: set repository variable
-    # CODSPEED_ENABLED=true (and add the CODSPEED_TOKEN secret) once the repo is
-    # connected at codspeed.io. Until then this job is "Skipped", not failed.
-    if: vars.CODSPEED_ENABLED == 'true'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install stable Rust
-        run: rustup toolchain install stable --profile minimal
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo-codspeed
-        uses: taiki-e/install-action@v2
+      - name: Setup rust toolchain, cache and cargo-codspeed binary
+        uses: moonrepo/setup-rust@v0
         with:
-          tool: cargo-codspeed
+          channel: stable
+          cache-target: release
+          bins: cargo-codspeed
 
-      - name: Build benchmarks
+      - name: Build the benchmark target(s)
         run: cargo codspeed build
 
-      - name: Run benchmarks
-        uses: CodSpeedHQ/action@v3
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v4
         with:
+          mode: simulation
           run: cargo codspeed run
-          token: ${{ secrets.CODSPEED_TOKEN }}
