@@ -10,6 +10,17 @@ use crate::stone::Player;
 use std::fmt;
 
 /// Failure parsing a board FEN string.
+///
+/// Returned by [`Board::from_fen`].
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Board, FenError};
+///
+/// assert_eq!(Board::from_fen("nope"), Err(FenError::BadSize));
+/// assert_eq!(Board::from_fen("4:...."), Err(FenError::BadSize)); // size below 5
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FenError {
@@ -34,6 +45,18 @@ impl fmt::Display for FenError {
 impl std::error::Error for FenError {}
 
 /// Failure replaying a move list.
+///
+/// Returned by [`Game::from_move_list`].
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Game, MoveListError, RuleSet};
+///
+/// // `??` is not a coordinate, so replay fails on that token.
+/// let err = Game::from_move_list(RuleSet::standard(), "h8 ??").unwrap_err();
+/// assert_eq!(err, MoveListError::BadCoordinate("??".to_string()));
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MoveListError {
@@ -57,6 +80,18 @@ impl std::error::Error for MoveListError {}
 impl Board {
     /// Encode the board as `"<size>:<row>/<row>/…"`, top row first. Cells are
     /// `.` (empty), `X` (Black), `O` (White).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Player, Point};
+    ///
+    /// let mut board = Board::new(5);
+    /// board.place(Player::Black, Point::new(0, 0)); // bottom-left corner
+    ///
+    /// // Five rows, top-first; the stone sits in the last (bottom) row.
+    /// assert_eq!(board.to_fen(), "5:...../...../...../...../X....");
+    /// ```
     #[must_use]
     pub fn to_fen(&self) -> String {
         let size = self.size();
@@ -79,6 +114,20 @@ impl Board {
     /// Returns [`FenError`] if the size prefix is missing or out of range, the
     /// row count or a row length does not match the size, or a cell character
     /// is not one of `.`, `X`, `O`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Player, Point};
+    ///
+    /// let mut original = Board::new(15);
+    /// original.place(Player::Black, Point::new(7, 7));
+    ///
+    /// // `to_fen` and `from_fen` are inverses.
+    /// let restored = Board::from_fen(&original.to_fen())?;
+    /// assert_eq!(restored, original);
+    /// # Ok::<(), gomoku::FenError>(())
+    /// ```
     pub fn from_fen(s: &str) -> Result<Board, FenError> {
         let (size_str, rows_str) = s.split_once(':').ok_or(FenError::BadSize)?;
         let size: u8 = size_str.trim().parse().map_err(|_| FenError::BadSize)?;
@@ -115,6 +164,18 @@ impl Board {
 impl Game {
     /// The move history as a space-separated list of algebraic coordinates,
     /// e.g. `"h8 i9 g7"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// game.play(Point::new(7, 7))?; // h8
+    /// game.play(Point::new(7, 8))?; // h9
+    /// assert_eq!(game.to_move_list(), "h8 h9");
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[must_use]
     pub fn to_move_list(&self) -> String {
         self.moves()
@@ -136,6 +197,18 @@ impl Game {
     /// Returns [`MoveListError::BadCoordinate`] for a token that is not valid
     /// algebraic notation, or [`MoveListError::Illegal`] if a move is rejected
     /// during replay.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, RuleSet};
+    ///
+    /// let game = Game::from_move_list(RuleSet::standard(), "h8 h1 i8 i1 j8")?;
+    /// assert_eq!(game.move_count(), 5);
+    /// // The reconstructed game replays back to the same notation.
+    /// assert_eq!(game.to_move_list(), "h8 h1 i8 i1 j8");
+    /// # Ok::<(), gomoku::MoveListError>(())
+    /// ```
     pub fn from_move_list(rules: RuleSet, list: &str) -> Result<Game, MoveListError> {
         let mut game = Game::new(rules);
         for tok in list.split_whitespace() {

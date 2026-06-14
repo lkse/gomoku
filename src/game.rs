@@ -7,7 +7,16 @@ use crate::rules::opening::{Constraint, OpeningAction, Swap2Choice};
 use crate::rules::{win, Opening, RuleSet};
 use crate::stone::Player;
 
-/// The current outcome of a game.
+/// The current outcome of a game, as reported by [`Game::status`].
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Game, RuleSet, Status};
+///
+/// let game = Game::new(RuleSet::standard());
+/// assert_eq!(game.status(), Status::InProgress);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     /// Play continues.
@@ -20,6 +29,16 @@ pub enum Status {
 
 impl Status {
     /// Whether the game has finished.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Player, Status};
+    ///
+    /// assert!(!Status::InProgress.is_over());
+    /// assert!(Status::Win(Player::Black).is_over());
+    /// assert!(Status::Draw.is_over());
+    /// ```
     #[inline]
     pub fn is_over(self) -> bool {
         !matches!(self, Status::InProgress)
@@ -41,6 +60,19 @@ struct PlayedMove {
 const OPENING_DONE: u8 = u8::MAX;
 
 /// The result of a successful [`Game::play`].
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Game, Point, RuleSet, Status};
+///
+/// let mut game = Game::new(RuleSet::standard());
+/// let outcome = game.play(Point::new(7, 7))?;
+///
+/// assert_eq!(outcome.status, Status::InProgress);
+/// assert!(outcome.captured.is_empty()); // captures only occur under Pente rules
+/// # Ok::<(), gomoku::MoveError>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MoveOutcome {
     /// Game status after the move.
@@ -50,6 +82,32 @@ pub struct MoveOutcome {
 }
 
 /// A single game of gomoku under a fixed [`RuleSet`].
+///
+/// This is the primary entry point of the crate: it owns the [`Board`], tracks
+/// whose turn it is, validates and applies moves, records history for [`undo`],
+/// and drives any opening protocol. Build one with [`Game::new`] (or
+/// [`Game::try_new`] for untrusted rules) and advance it with [`play`].
+///
+/// [`undo`]: Game::undo
+/// [`play`]: Game::play
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Game, Player, Point, RuleSet, Status};
+///
+/// let mut game = Game::new(RuleSet::standard());
+/// // Black completes a horizontal five along row 8 while White replies on row 1.
+/// for x in 0..4 {
+///     game.play(Point::new(x, 7))?; // Black
+///     game.play(Point::new(x, 0))?; // White
+/// }
+/// let outcome = game.play(Point::new(4, 7))?;
+///
+/// assert_eq!(outcome.status, Status::Win(Player::Black));
+/// assert_eq!(game.winner(), Some(Player::Black));
+/// # Ok::<(), gomoku::MoveError>(())
+/// ```
 #[derive(Clone, Debug)]
 pub struct Game {
     rules: RuleSet,
@@ -81,6 +139,20 @@ impl Game {
     ///
     /// Returns a [`RuleSetError`] if `rules` is not a valid configuration; see
     /// [`RuleSet::validate`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, RuleSet, RuleSetError};
+    ///
+    /// // A valid preset succeeds.
+    /// assert!(Game::try_new(RuleSet::standard()).is_ok());
+    ///
+    /// // An out-of-range board size is rejected instead of panicking.
+    /// let mut rules = RuleSet::standard();
+    /// rules.board_size = 3;
+    /// assert_eq!(Game::try_new(rules).err(), Some(RuleSetError::BoardSize(3)));
+    /// ```
     pub fn try_new(rules: RuleSet) -> Result<Game, RuleSetError> {
         rules.validate()?;
         Ok(Game::new(rules))
@@ -93,6 +165,17 @@ impl Game {
     /// Panics if `rules` is not valid (see [`RuleSet::validate`]); most importantly
     /// if `rules.board_size` is outside `5..=19`. Use [`Game::try_new`] to handle
     /// invalid configurations without panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Player, RuleSet, Status};
+    ///
+    /// let game = Game::new(RuleSet::standard());
+    /// assert_eq!(game.to_move(), Player::Black); // Black moves first
+    /// assert_eq!(game.status(), Status::InProgress);
+    /// assert_eq!(game.move_count(), 0);
+    /// ```
     #[must_use]
     pub fn new(rules: RuleSet) -> Game {
         Game {
@@ -111,36 +194,95 @@ impl Game {
     }
 
     /// The rules in force.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, RuleSet};
+    ///
+    /// let game = Game::new(RuleSet::omok());
+    /// assert_eq!(game.rules().board_size, 19); // Omok is played on 19×19
+    /// ```
     #[inline]
     pub fn rules(&self) -> &RuleSet {
         &self.rules
     }
 
     /// The board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Cell, Game, Player, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// game.play(Point::new(7, 7))?;
+    /// assert_eq!(game.board().get(Point::new(7, 7)), Cell::Stone(Player::Black));
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[inline]
     pub fn board(&self) -> &Board {
         &self.board
     }
 
     /// Whose turn it is.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Player, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// assert_eq!(game.to_move(), Player::Black);
+    /// game.play(Point::new(7, 7))?;
+    /// assert_eq!(game.to_move(), Player::White); // turn passed to the opponent
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[inline]
     pub fn to_move(&self) -> Player {
         self.to_move
     }
 
     /// Current status.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, RuleSet, Status};
+    ///
+    /// assert_eq!(Game::new(RuleSet::standard()).status(), Status::InProgress);
+    /// ```
     #[inline]
     pub fn status(&self) -> Status {
         self.status
     }
 
     /// Number of pairs `player` has captured (always 0 unless capturing is on).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Player, RuleSet};
+    ///
+    /// // No captures have happened yet under Pente rules.
+    /// let game = Game::new(RuleSet::pente());
+    /// assert_eq!(game.captures(Player::Black), 0);
+    /// ```
     #[inline]
     pub fn captures(&self, player: Player) -> u16 {
         self.captures[player as usize]
     }
 
     /// The winner, if the game has been won.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, RuleSet};
+    ///
+    /// // No winner in a game that has not started.
+    /// assert_eq!(Game::new(RuleSet::standard()).winner(), None);
+    /// ```
     #[inline]
     #[must_use]
     pub fn winner(&self) -> Option<Player> {
@@ -151,12 +293,36 @@ impl Game {
     }
 
     /// Number of moves played so far.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// game.play(Point::new(7, 7))?;
+    /// game.play(Point::new(7, 8))?;
+    /// assert_eq!(game.move_count(), 2);
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[inline]
     pub fn move_count(&self) -> usize {
         self.history.len()
     }
 
     /// The points played so far, in order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// game.play(Point::new(7, 7))?;
+    /// game.play(Point::new(0, 0))?;
+    /// assert_eq!(game.moves(), vec![Point::new(7, 7), Point::new(0, 0)]);
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[must_use]
     pub fn moves(&self) -> Vec<Point> {
         self.history.iter().map(|m| m.point).collect()
@@ -164,6 +330,30 @@ impl Game {
 
     /// What the active opening protocol expects next. Returns
     /// [`OpeningAction::None`] once the opening is over (or for free openings).
+    ///
+    /// Drive interactive openings by querying this, then either calling
+    /// [`play`](Game::play) for a `PlaceStone` action or the matching decision
+    /// method ([`choose_color`](Game::choose_color),
+    /// [`swap2_decision`](Game::swap2_decision), and so on).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, OpeningAction, Point, RuleSet, Swap2Choice};
+    ///
+    /// let mut game = Game::new(RuleSet::swap2());
+    /// // The opening starts by placing three stones.
+    /// for &(x, y) in &[(7, 7), (7, 8), (8, 7)] {
+    ///     game.play(Point::new(x, y))?;
+    /// }
+    /// // Now player two makes the Swap2 decision.
+    /// assert_eq!(game.opening_action(), OpeningAction::Swap2Decision);
+    /// game.swap2_decision(Swap2Choice::PlayWhite)?;
+    ///
+    /// // Free openings never report an action.
+    /// assert_eq!(Game::new(RuleSet::standard()).opening_action(), OpeningAction::None);
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[must_use]
     pub fn opening_action(&self) -> OpeningAction {
         use Constraint::Anywhere;
@@ -226,6 +416,22 @@ impl Game {
     }
 
     /// The color chosen by a swap-style decision, if one has been made.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Player, Point, RuleSet, Swap2Choice};
+    ///
+    /// let mut game = Game::new(RuleSet::swap2());
+    /// assert_eq!(game.opening_color_choice(), None); // not decided yet
+    ///
+    /// for &(x, y) in &[(7, 7), (7, 8), (8, 7)] {
+    ///     game.play(Point::new(x, y))?;
+    /// }
+    /// game.swap2_decision(Swap2Choice::SwapToBlack)?;
+    /// assert_eq!(game.opening_color_choice(), Some(Player::Black));
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[inline]
     pub fn opening_color_choice(&self) -> Option<Player> {
         self.opening_color_choice
@@ -266,6 +472,19 @@ impl Game {
     }
 
     /// Whether the current player may legally play at `p`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// let p = Point::new(7, 7);
+    /// assert!(game.is_legal(p));
+    /// game.play(p)?;
+    /// assert!(!game.is_legal(p)); // now occupied
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[inline]
     #[must_use]
     pub fn is_legal(&self, p: Point) -> bool {
@@ -276,6 +495,20 @@ impl Game {
     ///
     /// Returns an empty vector when the game is over or an opening decision is
     /// pending. For Renju this excludes forbidden points for Black.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// // Every one of the 225 intersections is open on an empty 15×15 board.
+    /// assert_eq!(game.legal_moves().len(), 15 * 15);
+    ///
+    /// game.play(Point::new(7, 7))?;
+    /// assert_eq!(game.legal_moves().len(), 15 * 15 - 1);
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     #[must_use]
     pub fn legal_moves(&self) -> Vec<Point> {
         if self.status.is_over() {
@@ -294,6 +527,21 @@ impl Game {
     /// Returns [`MoveError`] without modifying the game if the game is over, the
     /// point is off-board or occupied, the move is forbidden under Renju, or an
     /// opening-protocol restriction or pending decision disallows it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, MoveError, Player, Point, RuleSet, Status};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// let outcome = game.play(Point::new(7, 7))?;
+    /// assert_eq!(outcome.status, Status::InProgress);
+    /// assert_eq!(game.to_move(), Player::White);
+    ///
+    /// // An occupied point is rejected and the game is left unchanged.
+    /// assert_eq!(game.play(Point::new(7, 7)), Err(MoveError::Occupied(Point::new(7, 7))));
+    /// # Ok::<(), MoveError>(())
+    /// ```
     pub fn play(&mut self, p: Point) -> Result<MoveOutcome, MoveError> {
         self.check_legal(p)?;
 
@@ -345,6 +593,21 @@ impl Game {
 
     /// Undo the most recent move, restoring any captured stones and the turn.
     /// Returns the point that was undone, or `None` if no moves had been made.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, Player, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::standard());
+    /// game.play(Point::new(7, 7))?;
+    ///
+    /// assert_eq!(game.undo(), Some(Point::new(7, 7)));
+    /// assert_eq!(game.to_move(), Player::Black); // turn handed back
+    /// assert!(game.board().is_empty(Point::new(7, 7)));
+    /// assert_eq!(game.undo(), None); // nothing left to undo
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     pub fn undo(&mut self) -> Option<Point> {
         let last = self.history.pop()?;
         self.board.clear(last.point);
@@ -365,6 +628,23 @@ impl Game {
     /// # Errors
     ///
     /// Returns [`OpeningError::UnexpectedColorChoice`] if no color choice is due.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, OpeningAction, Player, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::swap());
+    /// // Player one places the opening three stones.
+    /// for &(x, y) in &[(7, 7), (7, 8), (8, 7)] {
+    ///     game.play(Point::new(x, y))?;
+    /// }
+    /// // Player two then chooses which color to take.
+    /// assert_eq!(game.opening_action(), OpeningAction::ChooseColor);
+    /// game.choose_color(Player::White)?;
+    /// assert_eq!(game.opening_color_choice(), Some(Player::White));
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     pub fn choose_color(&mut self, color: Player) -> Result<(), MoveError> {
         if self.opening_action() != OpeningAction::ChooseColor {
             return Err(MoveError::Opening(OpeningError::UnexpectedColorChoice));
@@ -379,6 +659,21 @@ impl Game {
     /// # Errors
     ///
     /// Returns [`OpeningError::UnexpectedSwap2Decision`] if no Swap2 decision is due.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, OpeningAction, Point, RuleSet, Swap2Choice};
+    ///
+    /// let mut game = Game::new(RuleSet::swap2());
+    /// for &(x, y) in &[(7, 7), (7, 8), (8, 7)] {
+    ///     game.play(Point::new(x, y))?;
+    /// }
+    /// // Defer the color choice by placing two more stones (White then Black).
+    /// game.swap2_decision(Swap2Choice::PlaceTwoMore)?;
+    /// assert!(matches!(game.opening_action(), OpeningAction::PlaceStone { .. }));
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     pub fn swap2_decision(&mut self, choice: Swap2Choice) -> Result<(), MoveError> {
         if self.opening_action() != OpeningAction::Swap2Decision {
             return Err(MoveError::Opening(OpeningError::UnexpectedSwap2Decision));
@@ -403,6 +698,22 @@ impl Game {
     ///
     /// Returns [`OpeningError::UnexpectedAnnouncement`] if no announcement is due,
     /// or [`OpeningError::ZeroCount`] if `count` is zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, OpeningAction, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::renju_yamaguchi());
+    /// for &(x, y) in &[(7, 7), (7, 8), (8, 7)] {
+    ///     game.play(Point::new(x, y))?;
+    /// }
+    /// // Black announces it will offer two candidate 5th moves.
+    /// assert_eq!(game.opening_action(), OpeningAction::AnnounceCount);
+    /// game.announce_fifth_count(2)?;
+    /// assert_eq!(game.opening_action(), OpeningAction::ChooseColor);
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     pub fn announce_fifth_count(&mut self, count: u8) -> Result<(), MoveError> {
         if self.opening_action() != OpeningAction::AnnounceCount {
             return Err(MoveError::Opening(OpeningError::UnexpectedAnnouncement));
@@ -422,6 +733,25 @@ impl Game {
     ///
     /// Returns an [`OpeningError`] if no proposal is due, the count is wrong, or a
     /// duplicate is offered; or the [`MoveError`] from the first illegal candidate.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, OpeningAction, Player, Point, RuleSet};
+    ///
+    /// let mut game = Game::new(RuleSet::renju_yamaguchi());
+    /// for &(x, y) in &[(7, 7), (7, 8), (8, 7)] {
+    ///     game.play(Point::new(x, y))?;
+    /// }
+    /// game.announce_fifth_count(2)?;     // promise two candidates
+    /// game.choose_color(Player::White)?; // opponent keeps White
+    /// game.play(Point::new(8, 8))?;      // White's fourth stone
+    ///
+    /// // Black offers the two promised, distinct candidate 5th moves.
+    /// game.propose_fifths(&[Point::new(0, 0), Point::new(1, 1)])?;
+    /// assert!(matches!(game.opening_action(), OpeningAction::SelectFifth { .. }));
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     pub fn propose_fifths(&mut self, points: &[Point]) -> Result<(), MoveError> {
         let OpeningAction::ProposeFifths { count } = self.opening_action() else {
             return Err(MoveError::Opening(OpeningError::UnexpectedProposal));
@@ -447,6 +777,28 @@ impl Game {
     ///
     /// Returns [`OpeningError::UnexpectedSelection`] if no selection is due, or
     /// [`OpeningError::NotProposed`] if `p` was not among the proposals.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Game, OpeningAction, Player, Point, RuleSet, Status};
+    ///
+    /// let mut game = Game::new(RuleSet::renju_yamaguchi());
+    /// for &(x, y) in &[(7, 7), (7, 8), (8, 7)] {
+    ///     game.play(Point::new(x, y))?;
+    /// }
+    /// game.announce_fifth_count(2)?;
+    /// game.choose_color(Player::White)?;
+    /// game.play(Point::new(8, 8))?;
+    /// game.propose_fifths(&[Point::new(0, 0), Point::new(1, 1)])?;
+    ///
+    /// // The opponent picks one offered move; it is played as Black's 5th stone,
+    /// // which ends the opening.
+    /// let outcome = game.choose_fifth(Point::new(1, 1))?;
+    /// assert_eq!(outcome.status, Status::InProgress);
+    /// assert_eq!(game.opening_action(), OpeningAction::None);
+    /// # Ok::<(), gomoku::MoveError>(())
+    /// ```
     pub fn choose_fifth(&mut self, p: Point) -> Result<MoveOutcome, MoveError> {
         let OpeningAction::SelectFifth { options } = self.opening_action() else {
             return Err(MoveError::Opening(OpeningError::UnexpectedSelection));
