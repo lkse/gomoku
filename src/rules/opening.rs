@@ -15,6 +15,22 @@ use crate::point::Point;
 use crate::stone::Player;
 
 /// The action a game expects next while an opening protocol is in progress.
+///
+/// Obtained from [`Game::opening_action`](crate::Game::opening_action). Each
+/// variant names the method used to satisfy it.
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Game, OpeningAction, RuleSet};
+///
+/// // A free opening never demands a special action.
+/// assert_eq!(Game::new(RuleSet::standard()).opening_action(), OpeningAction::None);
+///
+/// // A Swap2 game opens by asking for a stone placement.
+/// let swap2 = Game::new(RuleSet::swap2());
+/// assert!(matches!(swap2.opening_action(), OpeningAction::PlaceStone { .. }));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpeningAction {
     /// Play a stone of `color` (via [`Game::play`](crate::Game::play)); it must
@@ -50,7 +66,20 @@ pub enum OpeningAction {
     None,
 }
 
-/// A placement restriction on an opening move.
+/// A placement restriction on an opening move, carried by
+/// [`OpeningAction::PlaceStone`].
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Constraint, Point};
+///
+/// let center = Point::new(7, 7);
+/// // The third Pro stone must be at least 3 lines from the center.
+/// let constraint = Constraint::MinDistance(3);
+/// assert!(constraint.allows(Point::new(10, 7), center));  // distance 3
+/// assert!(!constraint.allows(Point::new(9, 7), center));  // distance 2
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Constraint {
     /// May be played on any empty point.
@@ -63,6 +92,17 @@ pub enum Constraint {
 
 impl Constraint {
     /// Whether `p` satisfies this constraint on a board with the given `center`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Constraint, Point};
+    ///
+    /// let center = Point::new(7, 7);
+    /// assert!(Constraint::Anywhere.allows(Point::new(0, 0), center));
+    /// assert!(Constraint::Center.allows(center, center));
+    /// assert!(!Constraint::Center.allows(Point::new(8, 7), center));
+    /// ```
     pub fn allows(self, p: Point, center: Point) -> bool {
         match self {
             Constraint::Anywhere => true,
@@ -76,7 +116,22 @@ impl Constraint {
     }
 }
 
-/// Player 2's choice in the Swap2 opening.
+/// Player 2's choice in the Swap2 opening, passed to
+/// [`Game::swap2_decision`](crate::Game::swap2_decision).
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Game, Point, RuleSet, Swap2Choice};
+///
+/// let mut game = Game::new(RuleSet::swap2());
+/// for &(x, y) in &[(7, 7), (7, 8), (8, 7)] {
+///     game.play(Point::new(x, y))?;
+/// }
+/// // Take Black instead of continuing as White.
+/// game.swap2_decision(Swap2Choice::SwapToBlack)?;
+/// # Ok::<(), gomoku::MoveError>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Swap2Choice {
     /// Take White and continue (no swap).
@@ -89,6 +144,27 @@ pub enum Swap2Choice {
 
 /// One of the 26 canonical Renju openings. The first 13 are *direct* (直), the
 /// last 13 are *indirect* (間).
+///
+/// Each name maps to a concrete three-stone placement via [`placements`], with
+/// the reverse lookup provided by [`identify`]. Enumerate them all with
+/// [`ALL_OPENINGS`].
+///
+/// [`placements`]: OpeningName::placements
+/// [`identify`]: OpeningName::identify
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::OpeningName;
+///
+/// let opening = OpeningName::Kansei;
+/// assert_eq!(opening.romaji(), "Kansei");
+/// assert!(opening.is_direct());
+///
+/// // A name round-trips through its board placement.
+/// let stones = opening.placements(15);
+/// assert_eq!(OpeningName::identify(stones, 15), Some(opening));
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum OpeningName {
@@ -147,6 +223,18 @@ pub enum OpeningName {
 }
 
 /// All 26 openings, direct first then indirect.
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{OpeningName, ALL_OPENINGS};
+///
+/// assert_eq!(ALL_OPENINGS.len(), 26);
+/// assert_eq!(ALL_OPENINGS[0], OpeningName::Kansei);
+///
+/// // Exactly the first half are direct openings.
+/// assert_eq!(ALL_OPENINGS.iter().filter(|o| o.is_direct()).count(), 13);
+/// ```
 pub const ALL_OPENINGS: [OpeningName; 26] = {
     use OpeningName::*;
     [
@@ -229,18 +317,43 @@ const INDIRECT_S3: [(i8, i8); 13] = [
 
 impl OpeningName {
     /// Whether this is a direct (直) opening (stone 2 orthogonally adjacent).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::OpeningName;
+    ///
+    /// assert!(OpeningName::Kansei.is_direct());    // 直 (direct)
+    /// assert!(!OpeningName::Chousei.is_direct());  // 間 (indirect)
+    /// ```
     #[inline]
     pub fn is_direct(self) -> bool {
         (self as usize) < 13
     }
 
     /// The romaji name, e.g. `"Kansei"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::OpeningName;
+    ///
+    /// assert_eq!(OpeningName::Kagetsu.romaji(), "Kagetsu");
+    /// ```
     #[inline]
     pub fn romaji(self) -> &'static str {
         ROMAJI[self as usize]
     }
 
     /// The Japanese (kanji) name, e.g. `"寒星"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::OpeningName;
+    ///
+    /// assert_eq!(OpeningName::Kansei.kanji(), "寒星");
+    /// ```
     #[inline]
     pub fn kanji(self) -> &'static str {
         KANJI[self as usize]
@@ -248,6 +361,18 @@ impl OpeningName {
 
     /// Offsets of the three opening stones relative to the board center, in
     /// move order (Black, White, Black).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::OpeningName;
+    ///
+    /// // Stone 1 is always the center; for a direct opening stone 2 is
+    /// // orthogonally adjacent.
+    /// let offsets = OpeningName::Kansei.offsets();
+    /// assert_eq!(offsets[0], (0, 0));
+    /// assert_eq!(offsets[1], (1, 0));
+    /// ```
     pub fn offsets(self) -> [(i8, i8); 3] {
         let i = self as usize;
         if self.is_direct() {
@@ -258,6 +383,16 @@ impl OpeningName {
     }
 
     /// The three opening stones as absolute points on a board of `size`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{OpeningName, Point};
+    ///
+    /// // On a 15×15 board the first stone lands on the center, h8.
+    /// let stones = OpeningName::Kansei.placements(15);
+    /// assert_eq!(stones[0], Point::new(7, 7));
+    /// ```
     pub fn placements(self, size: u8) -> [Point; 3] {
         let c = (size / 2) as i8;
         self.offsets()
@@ -267,6 +402,20 @@ impl OpeningName {
     /// Identify which named opening `stones` (in move order: Black, White,
     /// Black) represent on a board of `size`, considering all 8 board
     /// symmetries. Returns `None` if they match no canonical opening.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{OpeningName, Point};
+    ///
+    /// // The reverse of `placements`: recover the name from the stones.
+    /// let stones = OpeningName::Sosei.placements(15);
+    /// assert_eq!(OpeningName::identify(stones, 15), Some(OpeningName::Sosei));
+    ///
+    /// // Three stones in a line are not a canonical opening.
+    /// let line = [Point::new(0, 0), Point::new(1, 0), Point::new(2, 0)];
+    /// assert_eq!(OpeningName::identify(line, 15), None);
+    /// ```
     pub fn identify(stones: [Point; 3], size: u8) -> Option<OpeningName> {
         let c = (size / 2) as i16;
         let off = |p: Point| ((p.x as i16 - c) as i8, (p.y as i16 - c) as i8);
