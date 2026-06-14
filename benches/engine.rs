@@ -6,7 +6,7 @@
 //! or Pente capture scanning where applicable). A second group measures full
 //! legal-move generation across the board.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use codspeed_criterion_compat::{black_box, criterion_group, criterion_main, Criterion};
 use gomoku::{Game, Point, RuleSet, Status};
 
 /// A named rule variant and the preset that builds it.
