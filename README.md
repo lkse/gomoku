@@ -43,7 +43,7 @@ beneath a UI, a server, or a search-based bot.
 - **Pente custodial captures**, capture counting, and capture-to-win.
 - **Opening protocols**: Free, Pro, Long Pro, Swap, Swap2, and Yamaguchi, backed by a
   catalog of all **26 canonical Renju openings**.
-- **Configurable board size** up to 19×19.
+- **Configurable board size** up to 20×20.
 - **Serialization** with no `serde`: a FEN-like board snapshot and a replayable move list.
 - **Zero runtime dependencies**, no `unsafe`, and fully `Send`/`Sync`.
 
