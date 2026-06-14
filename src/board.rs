@@ -12,6 +12,23 @@ const WORDS: usize = 6;
 /// Occupancy is stored as two bitboards, one per color, so that membership
 /// tests and whole-board scans are a handful of word operations regardless of
 /// size. Cells are indexed `y * size + x`.
+///
+/// Most callers reach the board through [`Game::board`](crate::Game::board)
+/// rather than mutating one directly, but the placement API is public so the
+/// board can be used as a standalone bitboard.
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Board, Cell, Player, Point};
+///
+/// let mut board = Board::new(15);
+/// board.place(Player::Black, Point::new(7, 7));
+///
+/// assert_eq!(board.get(Point::new(7, 7)), Cell::Stone(Player::Black));
+/// assert!(board.is_empty(Point::new(0, 0)));
+/// assert_eq!(board.stone_count(), 1);
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Board {
     size: u8,
@@ -25,6 +42,16 @@ impl Board {
     /// # Panics
     ///
     /// Panics unless `5 <= size <= 19`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::Board;
+    ///
+    /// let board = Board::new(19);
+    /// assert_eq!(board.size(), 19);
+    /// assert_eq!(board.stone_count(), 0);
+    /// ```
     #[must_use]
     pub fn new(size: u8) -> Board {
         assert!(
@@ -39,12 +66,30 @@ impl Board {
     }
 
     /// The edge length of the board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::Board;
+    ///
+    /// assert_eq!(Board::new(15).size(), 15);
+    /// ```
     #[inline]
     pub const fn size(&self) -> u8 {
         self.size
     }
 
     /// Whether the point lies on the board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Point};
+    ///
+    /// let board = Board::new(15);
+    /// assert!(board.in_bounds(Point::new(14, 14)));
+    /// assert!(!board.in_bounds(Point::new(15, 0))); // column 15 is off a 15-wide board
+    /// ```
     #[inline]
     pub const fn in_bounds(&self, p: Point) -> bool {
         p.x < self.size && p.y < self.size
@@ -57,6 +102,19 @@ impl Board {
     }
 
     /// Contents of a cell. Off-board points read as [`Cell::Empty`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Cell, Player, Point};
+    ///
+    /// let mut board = Board::new(15);
+    /// board.place(Player::White, Point::new(3, 4));
+    ///
+    /// assert_eq!(board.get(Point::new(3, 4)), Cell::Stone(Player::White));
+    /// assert_eq!(board.get(Point::new(0, 0)), Cell::Empty);
+    /// assert_eq!(board.get(Point::new(99, 99)), Cell::Empty); // off-board reads as empty
+    /// ```
     #[inline]
     pub fn get(&self, p: Point) -> Cell {
         if !self.in_bounds(p) {
@@ -74,6 +132,17 @@ impl Board {
     }
 
     /// Whether the in-bounds point is unoccupied.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Player, Point};
+    ///
+    /// let mut board = Board::new(15);
+    /// assert!(board.is_empty(Point::new(7, 7)));
+    /// board.place(Player::Black, Point::new(7, 7));
+    /// assert!(!board.is_empty(Point::new(7, 7)));
+    /// ```
     #[inline]
     pub fn is_empty(&self, p: Point) -> bool {
         matches!(self.get(p), Cell::Empty)
@@ -83,6 +152,23 @@ impl Board {
     ///
     /// # Panics
     /// Panics if the point is off-board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Cell, Player, Point};
+    ///
+    /// let mut board = Board::new(15);
+    /// let p = Point::new(7, 7);
+    ///
+    /// board.place(Player::Black, p);
+    /// assert_eq!(board.get(p), Cell::Stone(Player::Black));
+    ///
+    /// // Placing the other color overwrites in place.
+    /// board.place(Player::White, p);
+    /// assert_eq!(board.get(p), Cell::Stone(Player::White));
+    /// assert_eq!(board.stone_count(), 1);
+    /// ```
     #[inline]
     pub fn place(&mut self, player: Player, at: Point) {
         assert!(self.in_bounds(at), "place out of bounds: {at}");
@@ -100,7 +186,20 @@ impl Board {
         }
     }
 
-    /// Remove any stone at the point, leaving it empty.
+    /// Remove any stone at the point, leaving it empty. A no-op off-board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Player, Point};
+    ///
+    /// let mut board = Board::new(15);
+    /// let p = Point::new(7, 7);
+    /// board.place(Player::Black, p);
+    ///
+    /// board.clear(p);
+    /// assert!(board.is_empty(p));
+    /// ```
     #[inline]
     pub fn clear(&mut self, at: Point) {
         if !self.in_bounds(at) {
@@ -113,6 +212,17 @@ impl Board {
     }
 
     /// Total number of stones on the board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Player, Point};
+    ///
+    /// let mut board = Board::new(15);
+    /// board.place(Player::Black, Point::new(7, 7));
+    /// board.place(Player::White, Point::new(7, 8));
+    /// assert_eq!(board.stone_count(), 2);
+    /// ```
     #[inline]
     pub fn stone_count(&self) -> u32 {
         (0..WORDS)
@@ -121,24 +231,70 @@ impl Board {
     }
 
     /// Whether every intersection is occupied (used for draw detection).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Player};
+    ///
+    /// // Fill a tiny 5×5 board completely.
+    /// let mut board = Board::new(5);
+    /// for p in board.points().collect::<Vec<_>>() {
+    ///     board.place(Player::Black, p);
+    /// }
+    /// assert!(board.is_full());
+    /// ```
     #[inline]
     pub fn is_full(&self) -> bool {
         self.stone_count() == self.size as u32 * self.size as u32
     }
 
-    /// Iterate over every point on the board, row by row.
+    /// Iterate over every point on the board, row by row from the bottom-left.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::Board;
+    ///
+    /// let board = Board::new(15);
+    /// assert_eq!(board.points().count(), 15 * 15);
+    /// ```
     pub fn points(&self) -> impl Iterator<Item = Point> + '_ {
         let size = self.size;
         (0..size).flat_map(move |y| (0..size).map(move |x| Point::new(x, y)))
     }
 
     /// The center intersection (defined for odd sizes; rounds down otherwise).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gomoku::{Board, Point};
+    ///
+    /// assert_eq!(Board::new(15).center(), Point::new(7, 7));
+    /// ```
     #[inline]
     pub const fn center(&self) -> Point {
         Point::new(self.size / 2, self.size / 2)
     }
 }
 
+/// Renders the board as text with row numbers down the left and column letters
+/// along the bottom, origin at the bottom-left. Black stones show as `X`, White
+/// as `O`, and empty intersections as `.`.
+///
+/// # Examples
+///
+/// ```
+/// use gomoku::{Board, Player, Point};
+///
+/// let mut board = Board::new(15);
+/// board.place(Player::Black, Point::new(7, 7));
+///
+/// let text = board.to_string();
+/// assert!(text.contains('X'));     // the black stone we placed
+/// assert!(text.contains("a b c")); // column labels along the bottom edge
+/// ```
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Rows are printed top (highest y) to bottom so the origin sits at the
